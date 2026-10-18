@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control Consolidado de Asistencia y Retardos</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen p-4 md:p-8">
+
+  <div class="max-w-7xl mx-auto space-y-6">
+
+    <!-- Encabezado Principal -->
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-2">
+          <i data-lucide="building-2" class="w-7 h-7 text-blue-600"></i>
+          Consolidado Multisucursal de Retardos
+        </h1>
+        <p class="text-sm text-slate-500 mt-1">Control semanal de Lunes a Domingo y acumulado mensual de sucursales</p>
+      </div>
+
+      <button onclick="sincronizarTodas()" 
+              class="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 shadow-sm">
+        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+        Sincronizar Datos
+      </button>
+    </div>
+
+    <!-- Panel de Sucursales Registradas -->
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+      <div class="flex justify-between items-center flex-wrap gap-2">
+        <h3 class="text-md font-bold text-slate-800 flex items-center gap-2">
+          <i data-lucide="link" class="w-5 h-5 text-slate-500"></i>
+          Configuración de Enlaces de Sucursales / Islas
+        </h3>
+        <button onclick="toggleSucursalesForm()" class="text-xs text-blue-600 hover:underline font-semibold flex items-center gap-1">
+          <i data-lucide="settings" class="w-3.5 h-3.5"></i> Administrar Enlaces
+        </button>
+      </div>
+
+      <!-- Formulario para agregar sucursales -->
+      <div id="formSucursales" class="space-y-3 pt-2">
+        <div class="flex flex-col sm:flex-row gap-2">
+          <input type="text" id="nombreSucursal" placeholder="Nombre (ej. Isla Américas)" 
+                 class="px-4 py-2 border border-slate-300 rounded-xl w-full sm:w-1/3 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" />
+          <input type="text" id="urlSucursal" placeholder="URL de Google Apps Script (terminada en /exec)..." 
+                 class="px-4 py-2 border border-slate-300 rounded-xl w-full sm:w-2/3 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" />
+          <button onclick="agregarSucursal()" 
+                  class="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 shadow-sm">
+            <i data-lucide="plus" class="w-4 h-4"></i> Agregar
+          </button>
+        </div>
+      </div>
+
+      <!-- Chips de Sucursales Guardadas -->
+      <div id="listaSucursales" class="flex flex-wrap gap-2 pt-1"></div>
+    </div>
+
+    <!-- Indicador de Estado / Alertas -->
+    <div id="statusMessage" class="hidden p-4 rounded-xl text-sm font-medium"></div>
+
+    <!-- Controles de Navegación y Filtro de Fecha/Semana -->
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
+      <!-- Pestañas Vista Semanal vs Mensual -->
+      <div class="flex bg-slate-100 p-1.5 rounded-xl border border-slate-200 w-full md:w-auto">
+        <button id="btnVistaSemanal" onclick="cambiarVista('semanal')" 
+                class="w-1/2 md:w-auto px-5 py-2 rounded-lg text-sm font-semibold transition shadow-sm bg-white text-blue-600">
+          🗓️ Vista Semanal
+        </button>
+        <button id="btnVistaMensual" onclick="cambiarVista('mensual')" 
+                class="w-1/2 md:w-auto px-5 py-2 rounded-lg text-sm font-semibold transition text-slate-600 hover:text-slate-900">
+          📊 Vista Mensual
+        </button>
+      </div>
+
+      <!-- Filtros de Fecha según vista -->
+      <div class="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
+        <!-- Selector de Fecha para Semana -->
+        <div id="contenedorSemanal" class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+          <label for="inputFechaSemana" class="text-xs font-semibold text-slate-500">Semana del:</label>
+          <input type="date" id="inputFechaSemana" onchange="actualizarFiltros()" 
+                 class="bg-white border border-slate-300 rounded-lg px-2 py-1 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+
+        <!-- Selector de Mes -->
+        <div id="contenedorMensual" class="hidden flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+          <label for="inputMes" class="text-xs font-semibold text-slate-500">Mes:</label>
+          <input type="month" id="inputMes" onchange="actualizarFiltros()" 
+                 class="bg-white border border-slate-300 rounded-lg px-2 py-1 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+
+        <!-- Filtro por Turno -->
+        <select id="filtroTurno" onchange="actualizarFiltros()" class="px-3 py-2 border border-slate-300 rounded-xl text-sm font-medium bg-white outline-none shadow-sm">
+          <option value="todos">Todos los Turnos</option>
+          <option value="mañana">Turno Mañana (9:51 AM)</option>
+          <option value="tarde">Turno Tarde (3:51 PM)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Rango Activo Mostrado -->
+    <div id="infoRangoActivo" class="text-xs font-semibold text-slate-500 uppercase tracking-wider px-2">
+      Cargando rango...
+    </div>
+
+    <!-- Tarjetas KPI -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 border-l-4 border-l-red-500">
+        <div class="flex justify-between items-center text-slate-500 text-xs font-bold uppercase tracking-wider">
+          <span>Total Incidencias</span>
+          <i data-lucide="alert-triangle" class="w-5 h-5 text-red-500"></i>
+        </div>
+        <h2 id="kpiIncidencias" class="text-3xl font-extrabold text-slate-900 mt-2">0</h2>
+        <p class="text-xs text-slate-400 mt-1">Registros de retardo en el período</p>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 border-l-4 border-l-amber-500">
+        <div class="flex justify-between items-center text-slate-500 text-xs font-bold uppercase tracking-wider">
+          <span>Minutos Retardo Acumulados</span>
+          <i data-lucide="timer" class="w-5 h-5 text-amber-500"></i>
+        </div>
+        <h2 id="kpiMinutos" class="text-3xl font-extrabold text-slate-900 mt-2">0.00 min</h2>
+        <p class="text-xs text-slate-400 mt-1">Suma global de minutos tarde</p>
+      </div>
+
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 border-l-4 border-l-blue-500">
+        <div class="flex justify-between items-center text-slate-500 text-xs font-bold uppercase tracking-wider">
+          <span>Empleado con más Retardos</span>
+          <i data-lucide="user-x" class="w-5 h-5 text-blue-500"></i>
+        </div>
+        <h2 id="kpiTopEmpleado" class="text-xl font-bold text-slate-800 mt-2 truncate">-</h2>
+        <p class="text-xs text-slate-400 mt-1">Mayor reincidencia</p>
+      </div>
+    </div>
+
+    <!-- Tabla Principal Consolidada -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h3 id="tituloTabla" class="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <i data-lucide="users" class="w-5 h-5 text-slate-600"></i>
+            Resumen Semanal Consolidado (Lunes a Domingo)
+          </h3>
+          <p class="text-xs text-slate-500">Nombres unificados sin duplicar filas entre sucursales</p>
+        </div>
+
+        <div class="relative w-full sm:w-64">
+          <input type="text" id="inputBuscar" onkeyup="actualizarFiltros()" placeholder="Buscar colaborador..." 
+                 class="w-full pl-9 pr-4 py-1.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 uppercase tracking-wider">
+              <th class="p-4">Empleado</th>
+              <th class="p-4">Correo</th>
+              <th class="p-4">Sucursales registradas</th>
+              <th class="p-4 text-center">Tardanzas</th>
+              <th class="p-4 text-center">Minutos Totales Tarde</th>
+              <th class="p-4 text-center">Estatus</th>
+            </tr>
+          </thead>
+          <tbody id="tablaCuerpo" class="divide-y divide-slate-100 text-sm">
+            <tr>
+              <td colspan="6" class="p-8 text-center text-slate-400">
+                Cargando datos...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    let sucursales = [];
+    let todosLosRegistrosBrutos = [];
+    let vistaActual = 'semanal';
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const hoy = new Date();
+      document.getElementById('inputFechaSemana').valueAsDate = hoy;
+      
+      const mesActual = hoy.toISOString().slice(0, 7);
+      document.getElementById('inputMes').value = mesActual;
+
+      const guardadas = localStorage.getItem('sucursales_asistencia');
+      if (guardadas) {
+        try {
+          sucursales = JSON.parse(guardadas);
+          renderizarBadgesSucursales();
+          if (sucursales.length > 0) {
+            sincronizarTodas();
+          }
+        } catch (e) { console.error(e); }
+      } else {
+        mostrarMensaje('Comienza agregando los enlaces de tus sucursales en el panel superior.', 'bg-blue-50 text-blue-700');
+      }
+    });
+
+    function toggleSucursalesForm() {
+      const f = document.getElementById('formSucursales');
+      f.classList.toggle('hidden');
+    }
+
+    function agregarSucursal() {
+      const nombreInput = document.getElementById('nombreSucursal');
+      const urlInput = document.getElementById('urlSucursal');
+      const nombre = nombreInput.value.trim();
+      const url = urlInput.value.trim();
+
+      if (!nombre || !url) {
+        mostrarMensaje('Escribe el nombre y la URL de la sucursal.', 'bg-red-100 text-red-700');
+        return;
+      }
+
+      sucursales.push({ id: Date.now(), nombre, url });
+      localStorage.setItem('sucursales_asistencia', JSON.stringify(sucursales));
+
+      nombreInput.value = '';
+      urlInput.value = '';
+
+      renderizarBadgesSucursales();
+      sincronizarTodas();
+    }
+
+    function eliminarSucursal(id) {
+      sucursales = sucursales.filter(s => s.id !== id);
+      localStorage.setItem('sucursales_asistencia', JSON.stringify(sucursales));
+      renderizarBadgesSucursales();
+      sincronizarTodas();
+    }
+
+    function renderizarBadgesSucursales() {
+      const contenedor = document.getElementById('listaSucursales');
+      contenedor.innerHTML = '';
+
+      if (sucursales.length === 0) {
+        contenedor.innerHTML = '<span class="text-xs text-slate-400 font-normal">No has agregado ninguna sucursal aún.</span>';
+        return;
+      }
+
+      sucursales.forEach(s => {
+        const badge = document.createElement('span');
+        badge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold';
+        badge.innerHTML = `
+          <span>📍 ${s.nombre}</span>
+          <button onclick="eliminarSucursal(${s.id})" class="text-slate-400 hover:text-red-500 transition">
+            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+          </button>
+        `;
+        contenedor.appendChild(badge);
+      });
+      lucide.createIcons();
+    }
+
+    async function sincronizarTodas() {
+      if (sucursales.length === 0) {
+        mostrarMensaje('Por favor agrega al menos una sucursal.', 'bg-amber-100 text-amber-800');
+        return;
+      }
+
+      mostrarMensaje('Consultando datos de todas las sucursales en tiempo real...', 'bg-blue-50 text-blue-700');
+
+      const promesas = sucursales.map(async (sucursal) => {
+        try {
+          const res = await fetch(sucursal.url);
+          const data = await res.json();
+          return { sucursal: sucursal.nombre, filas: data, ok: true };
+        } catch (err) {
+          return { sucursal: sucursal.nombre, ok: false };
+        }
+      });
+
+      const resultados = await Promise.all(promesas);
+      
+      todosLosRegistrosBrutos = [];
+      let erroresCount = 0;
+
+      resultados.forEach(res => {
+        if (!res.ok || !Array.isArray(res.filas) || res.filas.length <= 1) {
+          erroresCount++;
+          return;
+        }
+
+        const registros = res.filas.slice(1);
+        registros.forEach(fila => {
+          const fechaRaw = fila[0];
+          const empleado = fila[1] ? normalizarTexto(fila[1]) : '';
+          const correo = fila[2] ? fila[2].toString().trim() : '';
+          const turno = fila[5] ? fila[5].toString().trim() : '';
+          const estado = fila[6] ? fila[6].toString().trim() : '';
+          let mins = parseFloat(fila[7]);
+          if (isNaN(mins)) mins = 0;
+
+          if (empleado && fechaRaw) {
+            const fechaObj = parseFechaGoogleSheet(fechaRaw);
+            if (fechaObj) {
+              todosLosRegistrosBrutos.push({
+                fecha: fechaObj,
+                empleado: empleado,
+                correo: correo,
+                turno: turno,
+                estado: estado,
+                minutosTarde: mins,
+                sucursal: res.sucursal
+              });
+            }
+          }
+        });
+      });
+
+      if (erroresCount === resultados.length) {
+        mostrarMensaje('Error al conectar con las hojas. Revisa que las URLs terminen en /exec y los permisos estén en "Cualquier persona".', 'bg-red-100 text-red-700');
+      } else {
+        ocultarMensaje();
+      }
+
+      actualizarFiltros();
+    }
+
+    function normalizarTexto(str) {
+      return str.toString()
+                .trim()
+                .toUpperCase()
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    }
+
+    // Lector ultra flexible de fechas de Google Sheets
+    function parseFechaGoogleSheet(val) {
+      if (!val) return null;
+
+      // Si viene como fecha directa de JS
+      if (val instanceof Date && !isNaN(val.getTime())) {
+        return new Date(val.getFullYear(), val.getMonth(), val.getDate());
+      }
+
+      const str = val.toString().trim();
+      const soloFecha = str.split(' ')[0]; // Toma 'D/M/YYYY' ignorando '9:47:44'
+
+      const partes = soloFecha.split(/[\/\-\.]/);
+      if (partes.length === 3) {
+        let dia, mes, anio;
+        if (partes[0].length === 4) {
+          // Formato YYYY-MM-DD
+          anio = parseInt(partes[0]);
+          mes = parseInt(partes[1]) - 1;
+          dia = parseInt(partes[2]);
+        } else {
+          // Formato DD/MM/YYYY o D/M/YYYY
+          dia = parseInt(partes[0]);
+          mes = parseInt(partes[1]) - 1;
+          anio = parseInt(partes[2]);
+        }
+        const d = new Date(anio, mes, dia);
+        if (!isNaN(d.getTime())) return d;
+      }
+
+      const dAlt = new Date(str);
+      return isNaN(dAlt.getTime()) ? null : new Date(dAlt.getFullYear(), dAlt.getMonth(), dAlt.getDate());
+    }
+
+    function cambiarVista(vista) {
+      vistaActual = vista;
+      const btnSem = document.getElementById('btnVistaSemanal');
+      const btnMen = document.getElementById('btnVistaMensual');
+      const contSem = document.getElementById('contenedorSemanal');
+      const contMen = document.getElementById('contenedorMensual');
+      const titulo = document.getElementById('tituloTabla');
+
+      if (vista === 'semanal') {
+        btnSem.className = 'w-1/2 md:w-auto px-5 py-2 rounded-lg text-sm font-semibold transition shadow-sm bg-white text-blue-600';
+        btnMen.className = 'w-1/2 md:w-auto px-5 py-2 rounded-lg text-sm font-semibold transition text-slate-600 hover:text-slate-900';
+        contSem.classList.remove('hidden');
+        contMen.classList.add('hidden');
+        titulo.innerHTML = `<i data-lucide="users" class="w-5 h-5 text-slate-600"></i> Resumen Semanal Consolidado (Lunes a Domingo)`;
+      } else {
+        btnMen.className = 'w-1/2 md:w-auto px-5 py-2 rounded-lg text-sm font-semibold transition shadow-sm bg-white text-blue-600';
+        btnSem.className = 'w-1/2 md:w-auto px-5 py-2 rounded-lg text-sm font-semibold transition text-slate-600 hover:text-slate-900';
+        contMen.classList.remove('hidden');
+        contSem.classList.add('hidden');
+        titulo.innerHTML = `<i data-lucide="calendar-range" class="w-5 h-5 text-slate-600"></i> Resumen Mensual Completo (Acumulado)`;
+      }
+      lucide.createIcons();
+      actualizarFiltros();
+    }
+
+    function obtenerRangoSemana(fechaBase) {
+      const d = new Date(fechaBase.getFullYear(), fechaBase.getMonth(), fechaBase.getDate());
+      const diaSemana = d.getDay(); // 0: Domingo, 1: Lunes
+      const diffLunes = d.getDate() - diaSemana + (diaSemana === 0 ? -6 : 1);
+      
+      const lunes = new Date(d.getFullYear(), d.getMonth(), diffLunes, 0, 0, 0, 0);
+      const domingo = new Date(d.getFullYear(), d.getMonth(), diffLunes + 6, 23, 59, 59, 999);
+
+      return { lunes, domingo };
+    }
+
+    function actualizarFiltros() {
+      const filtroTurno = document.getElementById('filtroTurno').value;
+      const busqueda = normalizarTexto(document.getElementById('inputBuscar').value);
+
+      let registrosFiltrados = [];
+      let textoRango = '';
+
+      if (vistaActual === 'semanal') {
+        const valFecha = document.getElementById('inputFechaSemana').value;
+        let fechaSel = new Date();
+        if (valFecha) {
+          const [y, m, d] = valFecha.split('-');
+          fechaSel = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+        }
+        
+        const { lunes, domingo } = obtenerRangoSemana(fechaSel);
+
+        const opcL = { day: 'numeric', month: 'short' };
+        textoRango = `Semana del ${lunes.toLocaleDateString('es-ES', opcL)} al ${domingo.toLocaleDateString('es-ES', opcL, { year: 'numeric' })}`;
+
+        registrosFiltrados = todosLosRegistrosBrutos.filter(r => r.fecha >= lunes && r.fecha <= domingo);
+      } else {
+        const valMes = document.getElementById('inputMes').value;
+        if (valMes) {
+          const [anio, mes] = valMes.split('-');
+          const a = parseInt(anio);
+          const m = parseInt(mes) - 1;
+          textoRango = `Mes Completo: ${new Date(a, m).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }).toUpperCase()}`;
+          
+          registrosFiltrados = todosLosRegistrosBrutos.filter(r => {
+            return r.fecha.getFullYear() === a && r.fecha.getMonth() === m;
+          });
+        }
+      }
+
+      document.getElementById('infoRangoActivo').innerText = `📅 ${textoRango}`;
+
+      if (filtroTurno !== 'todos') {
+        registrosFiltrados = registrosFiltrados.filter(r => r.turno.toLowerCase().includes(filtroTurno));
+      }
+
+      if (busqueda) {
+        registrosFiltrados = registrosFiltrados.filter(r => r.empleado.includes(busqueda));
+      }
+
+      procesarYRenderizar(registrosFiltrados);
+    }
+
+    function procesarYRenderizar(registros) {
+      const resumen = {};
+      let totalIncidencias = 0;
+      let totalMinutos = 0;
+
+      registros.forEach(r => {
+        if (r.estado.toLowerCase().includes('tarde')) {
+          totalIncidencias++;
+          totalMinutos += r.minutosTarde;
+
+          if (!resumen[r.empleado]) {
+            resumen[r.empleado] = {
+              correo: r.correo,
+              incidencias: 0,
+              minutosTotal: 0,
+              sucursalesSet: new Set()
+            };
+          }
+
+          resumen[r.empleado].incidencias += 1;
+          resumen[r.empleado].minutosTotal += r.minutosTarde;
+          resumen[r.empleado].sucursalesSet.add(r.sucursal);
+        }
+      });
+
+      document.getElementById('kpiIncidencias').innerText = totalIncidencias;
+      document.getElementById('kpiMinutos').innerText = totalMinutos.toFixed(2) + ' min';
+
+      const tbody = document.getElementById('tablaCuerpo');
+      tbody.innerHTML = '';
+
+      const lista = Object.keys(resumen);
+
+      if (lista.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" class="p-8 text-center text-emerald-600 font-medium">
+              🎉 ¡Sin retardos en el período seleccionado!
+            </td>
+          </tr>
+        `;
+        document.getElementById('kpiTopEmpleado').innerText = 'Ninguno';
+        return;
+      }
+
+      let topEmpleado = '-';
+      let maxIncidencias = 0;
+
+      lista.forEach(nombre => {
+        const d = resumen[nombre];
+
+        if (d.incidencias > maxIncidencias) {
+          maxIncidencias = d.incidencias;
+          topEmpleado = nombre;
+        }
+
+        const sucursalesTexto = Array.from(d.sucursalesSet).join(', ');
+
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-50/80 transition';
+        tr.innerHTML = `
+          <td class="p-4 font-semibold text-slate-800">${nombre}</td>
+          <td class="p-4 text-slate-500">${d.correo || '-'}</td>
+          <td class="p-4 text-slate-600 font-medium text-xs">📍 ${sucursalesTexto}</td>
+          <td class="p-4 text-center font-bold text-red-600">${d.incidencias}</td>
+          <td class="p-4 text-center font-bold text-amber-600">${d.minutosTotal.toFixed(2)} min</td>
+          <td class="p-4 text-center">
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+              Con Retardo
+            </span>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('kpiTopEmpleado').innerText = topEmpleado;
+    }
+
+    function mostrarMensaje(texto, clases) {
+      const el = document.getElementById('statusMessage');
+      el.className = `p-4 rounded-xl text-sm font-medium ${clases}`;
+      el.innerText = texto;
+      el.classList.remove('hidden');
+    }
+
+    function ocultarMensaje() {
+      document.getElementById('statusMessage').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
