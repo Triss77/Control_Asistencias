@@ -21,7 +21,7 @@
           <i data-lucide="building-2" class="w-7 h-7 text-blue-600"></i>
           Consolidado Multisucursal de Retardos
         </h1>
-        <p class="text-sm text-slate-500 mt-1">Control semanal de Lunes a Domingo y acumulado mensual de sucursales</p>
+        <p class="text-sm text-slate-500 mt-1">Control diario, semanal y acumulado mensual de sucursales</p>
       </div>
 
       <button onclick="sincronizarTodas()" 
@@ -64,25 +64,37 @@
     <!-- Indicador de Estado / Alertas -->
     <div id="statusMessage" class="hidden p-4 rounded-xl text-sm font-medium"></div>
 
-    <!-- Controles de Navegación y Filtro de Fecha/Semana -->
+    <!-- Controles de Navegación y Filtros de Fecha -->
     <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
-      <!-- Pestañas Vista Semanal vs Mensual -->
+      <!-- Pestañas Vista Hoy vs Semanal vs Mensual -->
       <div class="flex bg-slate-100 p-1.5 rounded-xl border border-slate-200 w-full md:w-auto">
+        <button id="btnVistaHoy" onclick="cambiarVista('hoy')" 
+                class="w-1/3 md:w-auto px-4 py-2 rounded-lg text-sm font-semibold transition shadow-sm bg-white text-blue-600">
+          ☀️ Vista de Hoy
+        </button>
         <button id="btnVistaSemanal" onclick="cambiarVista('semanal')" 
-                class="w-1/2 md:w-auto px-5 py-2 rounded-lg text-sm font-semibold transition shadow-sm bg-white text-blue-600">
-          🗓️ Vista Semanal
+                class="w-1/3 md:w-auto px-4 py-2 rounded-lg text-sm font-semibold transition text-slate-600 hover:text-slate-900">
+          🗓️ Vista Semanal / Día
         </button>
         <button id="btnVistaMensual" onclick="cambiarVista('mensual')" 
-                class="w-1/2 md:w-auto px-5 py-2 rounded-lg text-sm font-semibold transition text-slate-600 hover:text-slate-900">
+                class="w-1/3 md:w-auto px-4 py-2 rounded-lg text-sm font-semibold transition text-slate-600 hover:text-slate-900">
           📊 Vista Mensual
         </button>
       </div>
 
       <!-- Filtros de Fecha según vista -->
       <div class="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
-        <!-- Selector de Fecha para Semana -->
-        <div id="contenedorSemanal" class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
-          <label for="inputFechaSemana" class="text-xs font-semibold text-slate-500">Semana del:</label>
+        <!-- Selector de Modo de Fecha en Vista Semanal -->
+        <div id="contenedorModoFecha" class="hidden flex items-center gap-2">
+          <select id="filtroModoFecha" onchange="actualizarFiltros()" class="px-3 py-1.5 border border-slate-300 rounded-xl text-xs font-semibold bg-white outline-none shadow-sm text-slate-700">
+            <option value="semana">Toda la Semana (Lunes a Domingo)</option>
+            <option value="dia">Un Solo Día Seleccionado</option>
+          </select>
+        </div>
+
+        <!-- Selector de Fecha / Calendario -->
+        <div id="contenedorSemanal" class="hidden flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+          <label id="lblFechaSemana" for="inputFechaSemana" class="text-xs font-semibold text-slate-500">Fecha / Semana:</label>
           <input type="date" id="inputFechaSemana" onchange="actualizarFiltros()" 
                  class="bg-white border border-slate-300 rounded-lg px-2 py-1 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
@@ -143,8 +155,8 @@
       <div class="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h3 id="tituloTabla" class="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <i data-lucide="users" class="w-5 h-5 text-slate-600"></i>
-            Resumen Semanal Consolidado (Lunes a Domingo)
+            <i data-lucide="clock" class="w-5 h-5 text-slate-600"></i>
+            Resumen de Retardos de Hoy
           </h3>
           <p class="text-xs text-slate-500">Nombres unificados sin duplicar filas entre sucursales</p>
         </div>
@@ -186,7 +198,7 @@
 
     let sucursales = [];
     let todosLosRegistrosBrutos = [];
-    let vistaActual = 'semanal';
+    let vistaActual = 'hoy'; // 'hoy', 'semanal', 'mensual'
 
     window.addEventListener('DOMContentLoaded', () => {
       const hoy = new Date();
@@ -337,28 +349,24 @@
                 .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     }
 
-    // Lector ultra flexible de fechas de Google Sheets
     function parseFechaGoogleSheet(val) {
       if (!val) return null;
 
-      // Si viene como fecha directa de JS
       if (val instanceof Date && !isNaN(val.getTime())) {
         return new Date(val.getFullYear(), val.getMonth(), val.getDate());
       }
 
       const str = val.toString().trim();
-      const soloFecha = str.split(' ')[0]; // Toma 'D/M/YYYY' ignorando '9:47:44'
+      const soloFecha = str.split(' ')[0];
 
       const partes = soloFecha.split(/[\/\-\.]/);
       if (partes.length === 3) {
         let dia, mes, anio;
         if (partes[0].length === 4) {
-          // Formato YYYY-MM-DD
           anio = parseInt(partes[0]);
           mes = parseInt(partes[1]) - 1;
           dia = parseInt(partes[2]);
         } else {
-          // Formato DD/MM/YYYY o D/M/YYYY
           dia = parseInt(partes[0]);
           mes = parseInt(partes[1]) - 1;
           anio = parseInt(partes[2]);
@@ -373,32 +381,47 @@
 
     function cambiarVista(vista) {
       vistaActual = vista;
+      const btnHoy = document.getElementById('btnVistaHoy');
       const btnSem = document.getElementById('btnVistaSemanal');
       const btnMen = document.getElementById('btnVistaMensual');
+      
+      const modoFecha = document.getElementById('contenedorModoFecha');
       const contSem = document.getElementById('contenedorSemanal');
       const contMen = document.getElementById('contenedorMensual');
       const titulo = document.getElementById('tituloTabla');
 
-      if (vista === 'semanal') {
-        btnSem.className = 'w-1/2 md:w-auto px-5 py-2 rounded-lg text-sm font-semibold transition shadow-sm bg-white text-blue-600';
-        btnMen.className = 'w-1/2 md:w-auto px-5 py-2 rounded-lg text-sm font-semibold transition text-slate-600 hover:text-slate-900';
+      // Clases botones
+      const activoClass = 'w-1/3 md:w-auto px-4 py-2 rounded-lg text-sm font-semibold transition shadow-sm bg-white text-blue-600';
+      const inactivoClass = 'w-1/3 md:w-auto px-4 py-2 rounded-lg text-sm font-semibold transition text-slate-600 hover:text-slate-900';
+
+      btnHoy.className = vista === 'hoy' ? activoClass : inactivoClass;
+      btnSem.className = vista === 'semanal' ? activoClass : inactivoClass;
+      btnMen.className = vista === 'mensual' ? activoClass : inactivoClass;
+
+      if (vista === 'hoy') {
+        modoFecha.classList.add('hidden');
+        contSem.classList.add('hidden');
+        contMen.classList.add('hidden');
+        titulo.innerHTML = `<i data-lucide="sun" class="w-5 h-5 text-amber-500"></i> Resumen de Retardos de Hoy`;
+      } else if (vista === 'semanal') {
+        modoFecha.classList.remove('hidden');
         contSem.classList.remove('hidden');
         contMen.classList.add('hidden');
-        titulo.innerHTML = `<i data-lucide="users" class="w-5 h-5 text-slate-600"></i> Resumen Semanal Consolidado (Lunes a Domingo)`;
+        titulo.innerHTML = `<i data-lucide="users" class="w-5 h-5 text-slate-600"></i> Resumen de Retardos por Fecha / Semana`;
       } else {
-        btnMen.className = 'w-1/2 md:w-auto px-5 py-2 rounded-lg text-sm font-semibold transition shadow-sm bg-white text-blue-600';
-        btnSem.className = 'w-1/2 md:w-auto px-5 py-2 rounded-lg text-sm font-semibold transition text-slate-600 hover:text-slate-900';
-        contMen.classList.remove('hidden');
+        modoFecha.classList.add('hidden');
         contSem.classList.add('hidden');
+        contMen.classList.remove('hidden');
         titulo.innerHTML = `<i data-lucide="calendar-range" class="w-5 h-5 text-slate-600"></i> Resumen Mensual Completo (Acumulado)`;
       }
+
       lucide.createIcons();
       actualizarFiltros();
     }
 
     function obtenerRangoSemana(fechaBase) {
       const d = new Date(fechaBase.getFullYear(), fechaBase.getMonth(), fechaBase.getDate());
-      const diaSemana = d.getDay(); // 0: Domingo, 1: Lunes
+      const diaSemana = d.getDay();
       const diffLunes = d.getDate() - diaSemana + (diaSemana === 0 ? -6 : 1);
       
       const lunes = new Date(d.getFullYear(), d.getMonth(), diffLunes, 0, 0, 0, 0);
@@ -414,21 +437,35 @@
       let registrosFiltrados = [];
       let textoRango = '';
 
-      if (vistaActual === 'semanal') {
+      if (vistaActual === 'hoy') {
+        const hoy = new Date();
+        const hoyLimpio = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+        
+        textoRango = `Día Actual: ${hoyLimpio.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}`;
+        
+        registrosFiltrados = todosLosRegistrosBrutos.filter(r => r.fecha.getTime() === hoyLimpio.getTime());
+
+      } else if (vistaActual === 'semanal') {
+        const modo = document.getElementById('filtroModoFecha').value;
         const valFecha = document.getElementById('inputFechaSemana').value;
+        
         let fechaSel = new Date();
         if (valFecha) {
           const [y, m, d] = valFecha.split('-');
           fechaSel = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
         }
-        
-        const { lunes, domingo } = obtenerRangoSemana(fechaSel);
 
-        const opcL = { day: 'numeric', month: 'short' };
-        textoRango = `Semana del ${lunes.toLocaleDateString('es-ES', opcL)} al ${domingo.toLocaleDateString('es-ES', opcL, { year: 'numeric' })}`;
+        if (modo === 'dia') {
+          textoRango = `Día Seleccionado: ${fechaSel.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}`;
+          registrosFiltrados = todosLosRegistrosBrutos.filter(r => r.fecha.getTime() === fechaSel.getTime());
+        } else {
+          const { lunes, domingo } = obtenerRangoSemana(fechaSel);
+          const opcL = { day: 'numeric', month: 'short' };
+          textoRango = `Semana del ${lunes.toLocaleDateString('es-ES', opcL)} al ${domingo.toLocaleDateString('es-ES', opcL, { year: 'numeric' })}`;
+          registrosFiltrados = todosLosRegistrosBrutos.filter(r => r.fecha >= lunes && r.fecha <= domingo);
+        }
 
-        registrosFiltrados = todosLosRegistrosBrutos.filter(r => r.fecha >= lunes && r.fecha <= domingo);
-      } else {
+      } else { // vista mensual
         const valMes = document.getElementById('inputMes').value;
         if (valMes) {
           const [anio, mes] = valMes.split('-');
