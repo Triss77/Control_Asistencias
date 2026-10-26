@@ -158,7 +158,7 @@
             <i data-lucide="clock" class="w-5 h-5 text-slate-600"></i>
             Resumen de Retardos de Hoy
           </h3>
-          <p class="text-xs text-slate-500">Nombres unificados sin duplicar filas entre sucursales</p>
+          <p class="text-xs text-slate-500">Nombres unificados sin duplicar filas entre sucursales (Ordenado de mayor a menor retardo)</p>
         </div>
 
         <div class="relative w-full sm:w-64">
@@ -390,7 +390,6 @@
       const contMen = document.getElementById('contenedorMensual');
       const titulo = document.getElementById('tituloTabla');
 
-      // Clases botones
       const activoClass = 'w-1/3 md:w-auto px-4 py-2 rounded-lg text-sm font-semibold transition shadow-sm bg-white text-blue-600';
       const inactivoClass = 'w-1/3 md:w-auto px-4 py-2 rounded-lg text-sm font-semibold transition text-slate-600 hover:text-slate-900';
 
@@ -523,9 +522,17 @@
       const tbody = document.getElementById('tablaCuerpo');
       tbody.innerHTML = '';
 
-      const lista = Object.keys(resumen);
+      // Convertir objeto resumen a array y ordenar de MAYOR a MENOR por minutos totales
+      let listaEmpleados = Object.keys(resumen).map(nombre => {
+        return {
+          nombre: nombre,
+          ...resumen[nombre]
+        };
+      });
 
-      if (lista.length === 0) {
+      listaEmpleados.sort((a, b) => b.minutosTotal - a.minutosTotal);
+
+      if (listaEmpleados.length === 0) {
         tbody.innerHTML = `
           <tr>
             <td colspan="6" class="p-8 text-center text-emerald-600 font-medium">
@@ -537,37 +544,36 @@
         return;
       }
 
-      let topEmpleado = '-';
-      let maxIncidencias = 0;
+      // El empleado con más retardos es el primero tras ordenar
+      document.getElementById('kpiTopEmpleado').innerText = listaEmpleados[0].nombre;
 
-      lista.forEach(nombre => {
-        const d = resumen[nombre];
-
-        if (d.incidencias > maxIncidencias) {
-          maxIncidencias = d.incidencias;
-          topEmpleado = nombre;
-        }
-
+      listaEmpleados.forEach(d => {
         const sucursalesTexto = Array.from(d.sucursalesSet).join(', ');
+
+        // Regla de colores: 15 min o más = Rojo, Menos de 15 min = Naranja
+        let badgeEstatusClases = 'bg-red-100 text-red-700';
+        let textoEstatus = 'Retardo Alto';
+        if (d.minutosTotal < 15) {
+          badgeEstatusClases = 'bg-amber-100 text-amber-800';
+          textoEstatus = 'Retardo Leve';
+        }
 
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-50/80 transition';
         tr.innerHTML = `
-          <td class="p-4 font-semibold text-slate-800">${nombre}</td>
+          <td class="p-4 font-semibold text-slate-800">${d.nombre}</td>
           <td class="p-4 text-slate-500">${d.correo || '-'}</td>
           <td class="p-4 text-slate-600 font-medium text-xs">📍 ${sucursalesTexto}</td>
-          <td class="p-4 text-center font-bold text-red-600">${d.incidencias}</td>
+          <td class="p-4 text-center font-bold text-slate-700">${d.incidencias}</td>
           <td class="p-4 text-center font-bold text-amber-600">${d.minutosTotal.toFixed(2)} min</td>
           <td class="p-4 text-center">
-            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
-              Con Retardo
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${badgeEstatusClases}">
+              ${textoEstatus} (${d.minutosTotal.toFixed(1)}m)
             </span>
           </td>
         `;
         tbody.appendChild(tr);
       });
-
-      document.getElementById('kpiTopEmpleado').innerText = topEmpleado;
     }
 
     function mostrarMensaje(texto, clases) {
